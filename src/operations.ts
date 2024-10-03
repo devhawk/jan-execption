@@ -4,7 +4,7 @@
 // It greets visitors and keeps track of how many times each visitor has been greeted.
 // To run this app, visit our Quickstart: https://docs.dbos.dev/getting-started/quickstart
 
-import { HandlerContext, TransactionContext, Transaction, GetApi, ArgSource, ArgSources } from '@dbos-inc/dbos-sdk';
+import { HandlerContext, TransactionContext, Transaction, GetApi, ArgSource, ArgSources, StoredProcedure, StoredProcedureContext } from '@dbos-inc/dbos-sdk';
 import { Knex } from 'knex';
 
 // The schema of the database table used in this example.
@@ -25,6 +25,43 @@ export class Hello {
     const greet_count = rows[0].greet_count;
     const greeting = `Hello, ${user}! You have been greeted ${greet_count} times.`;
     return Hello.makeHTML(greeting);
+  }
+
+  @GetApi('/root')
+  @Transaction()
+  static async root(ctxt: TransactionContext<Knex>) {
+    ctxt.logger.info(`root start ${ctxt.workflowUUID}`);
+    return await ctxt.client.raw("select xx()")
+  }
+
+  @GetApi('/root2')
+  @Transaction()
+  static async root2(ctxt: TransactionContext<Knex>) {
+    ctxt.logger.info(`root2 start ${ctxt.workflowUUID}`);
+    try {
+      return await ctxt.client.raw("select xx()")
+    } catch (e) {
+      ctxt.logger.warn(`root2 catch ${ctxt.workflowUUID} ${(e as Error).message}`);
+      ctxt.client.raw("INSERT INTO dbos_errors (wfid, error_message) VALUES ($1, $2)", [ctxt.workflowUUID, (e as Error).message]);
+      return "all good"
+    }
+  }
+
+  @StoredProcedure()
+  static async root3(ctxt: StoredProcedureContext) {
+    ctxt.logger.info(`root3 start ${ctxt.workflowUUID}`);
+    try {
+      return await ctxt.query("select xx()", [])
+    } catch (e) {
+      ctxt.logger.warn(`root3 catch ${ctxt.workflowUUID} ${(e as Error).message}`);
+      ctxt.query("INSERT INTO dbos_errors (wfid, error_message) VALUES ($1, $2)", [ctxt.workflowUUID, (e as Error).message]);
+      return "all good"
+    }
+  }
+
+  @GetApi('/root3')
+  static async root3handler(ctxt: HandlerContext) {
+    return await ctxt.invoke(Hello).root3();
   }
 
   // Serve a quick readme for the app at the / endpoint
