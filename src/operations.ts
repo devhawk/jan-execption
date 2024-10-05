@@ -37,12 +37,22 @@ export class Hello {
   @GetApi('/root2')
   @Transaction()
   static async root2(ctxt: TransactionContext<Knex>) {
-    ctxt.logger.info(`root2 start ${ctxt.workflowUUID}`);
     try {
       return await ctxt.client.raw("select xx()")
     } catch (e) {
-      ctxt.logger.warn(`root2 catch ${ctxt.workflowUUID} ${(e as Error).message}`);
-      ctxt.client.raw("INSERT INTO dbos_errors (wfid, error_message) VALUES ($1, $2)", [ctxt.workflowUUID, (e as Error).message]);
+      return "all good"
+    }
+  }
+
+  @GetApi('/root4')
+  @Transaction()
+  static async root4(ctxt: TransactionContext<Knex>) {
+    ctxt.logger.info(`root4 start ${ctxt.workflowUUID}`);
+    try {
+      await ctxt.client.raw("SAVEPOINT sp1")
+      await ctxt.client.raw("select xx()")
+    } catch (e) {
+      await ctxt.client.raw("ROLLBACK TO SAVEPOINT sp1")
       return "all good"
     }
   }
@@ -54,7 +64,7 @@ export class Hello {
       return await ctxt.query("select xx()", [])
     } catch (e) {
       ctxt.logger.warn(`root3 catch ${ctxt.workflowUUID} ${(e as Error).message}`);
-      ctxt.query("INSERT INTO dbos_errors (wfid, error_message) VALUES ($1, $2)", [ctxt.workflowUUID, (e as Error).message]);
+      await ctxt.query("INSERT INTO dbos_errors (wfid, error_message) VALUES ($1, $2)", [ctxt.workflowUUID, (e as Error).message]);
       return "all good"
     }
   }
